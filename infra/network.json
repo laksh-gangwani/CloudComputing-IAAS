@@ -1,0 +1,231 @@
+{
+    "Description": "Infra for backend of deeplearning model",
+    "Parameters": {
+        "VCPNetworkPrefix": {
+            "Description": "Just the first two octets - .0.0/16 will be appended automatically",
+            "Default": "10.0",
+            "Type": "String"
+        }
+    },
+    "Resources":{
+            "Vpc": {
+                "Type": "AWS::EC2::VPC",
+                "Properties": {
+                    "CidrBlock": {
+                        "Fn::Join": [
+                            ".",
+                            [
+                                {
+                                    "Ref": "VCPNetworkPrefix"
+                                },
+                                "0.0/16"
+                            ]
+                        ]
+                    },
+                    "EnableDnsSupport": true,
+                    "EnableDnsHostnames": true,
+                    "InstanceTenancy": "default"
+                }
+            },
+            "InternetGateway": {
+                "Type": "AWS::EC2::InternetGateway",
+                "Properties": {}
+            },
+            "GatewayToInternet":{
+                "Type":"AWS::EC2::VPCGatewayAttachment",
+                "Properties":{
+                    "VpcId":{"Ref" : "Vpc"},
+                    "InternetGatewayId": {"Ref" : "InternetGateway"}
+                }
+            },
+            "RouteTable":{
+                "Type":"AWS::EC2::RouteTable",
+                "Properties":{
+                    "VpcId":{
+                        "Ref": "Vpc"
+                    }
+                }
+            },
+            "InternetRoute":{
+                "Type":"AWS::EC2::Route",
+                "Properties":{
+                    "DestinationCidrBlock": "0.0.0.0/0",
+                    "GatewayId": {
+                        "Ref":"InternetGateway"
+                    },
+                    "RouteTableId":{
+                        "Ref":"RouteTable"
+                    }
+                }
+            },
+            "publicSubnetARoutetableAssociation":{
+                "Type":"AWS::EC2::SubnetRouteTableAssociation",
+                "Properties":{
+                    "SubnetId":{"Ref": "publicSubnetA" },
+                    "RouteTableId":{"Ref" :  "RouteTable"}
+                }
+            },
+            "publicSubnetBRoutetableAssociation":{
+                "Type":"AWS::EC2::SubnetRouteTableAssociation",
+                "Properties":{
+                    "SubnetId":{"Ref": "publicSubnetB" },
+                    "RouteTableId":{"Ref" :  "RouteTable"}
+                }
+            },
+            "publicSubnetA": {
+              "Type": "AWS::EC2::Subnet",
+              "Properties": {
+                "AvailabilityZone": {
+                    "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Ref": "AWS::Region"
+                          },
+                          "a"
+                        ]
+                      ]
+                },
+                "VpcId": {"Ref":"Vpc"},
+                "CidrBlock": {
+                    "Fn::Join": [
+                        ".",
+                        [
+                          {
+                            "Ref": "VCPNetworkPrefix"
+                          },
+                          "1.0/25"
+                        ]
+                    ]
+                },
+                "MapPublicIpOnLaunch": true
+              }
+            },
+            "publicSubnetB": {
+                "Type": "AWS::EC2::Subnet",
+                "Properties": {
+                  "AvailabilityZone": {
+                      "Fn::Join": [
+                          "",
+                          [
+                            {
+                              "Ref": "AWS::Region"
+                            },
+                            "a"
+                          ]
+                        ]
+                  },
+                  "VpcId": {
+                    "Ref":"Vpc"
+                 },
+                  "CidrBlock": {
+                      "Fn::Join": [
+                          ".",
+                          [
+                            {
+                              "Ref": "VCPNetworkPrefix"
+                            },
+                            "2.0/25"
+                          ]
+                      ]
+                  },
+                  "MapPublicIpOnLaunch": true
+                }
+              },
+             "AutoscalingInstanceSecurityGroup": {
+                "Type" : "AWS::EC2::SecurityGroup",
+                "Properties" : {
+                    "GroupDescription" : "SecurityGroup for autoscaling near loadbalancer",
+                    "SecurityGroupIngress" : [
+                        {
+                            "CidrIp" : "0.0.0.0/0",
+                            "FromPort" : 22,
+                            "ToPort" : 22,
+                            "IpProtocol" : "tcp"
+                        },
+                        {
+                            "CidrIp" : "0.0.0.0/0",
+                            "FromPort" : 80,
+                            "ToPort" : 80,
+                            "IpProtocol" : "tcp"
+                        }
+                    ],
+                    "VpcId" : {"Ref":"Vpc"}
+                  }
+              },
+              "LoadInstanceSecurityGroup": {
+                "Type" : "AWS::EC2::SecurityGroup",
+                "Properties" : {
+                    "GroupDescription" : "SecurityGroup for Load Instance",
+                    "SecurityGroupIngress" : [
+                        {
+                            "CidrIp" : "0.0.0.0/0",
+                            "FromPort" : 22,
+                            "ToPort" : 22,
+                            "IpProtocol" : "tcp"
+                        },
+                        {
+                            "CidrIp" : "0.0.0.0/0",
+                            "FromPort" : 80,
+                            "ToPort" : 80,
+                            "IpProtocol" : "tcp"
+                        }
+                    ],
+                    "VpcId" : {"Ref":"Vpc"}
+                  }
+              }
+              
+    },
+    "Outputs":{
+        "VpcId":{
+            "Export":{
+                "Name":{
+                    "Fn::Sub" :"${AWS::StackName}-VpcId"
+                }
+            },
+            "Value":{
+                "Ref":"Vpc"
+            }
+        },
+        "publicSubnetA":{
+            "Export":{
+                "Name":{
+                    "Fn::Sub" :"${AWS::StackName}-PublicSubnetAId"
+                }
+            },
+            "Value":{
+                "Ref":"publicSubnetA"
+            }
+        },
+        "publicSubnetB":{
+            "Export":{
+                "Name":{
+                    "Fn::Sub" :"${AWS::StackName}-PublicSubnetBId"
+                }
+            },
+            "Value":{
+                "Ref":"publicSubnetB"
+            }
+        },
+        "AutoScalingInstanceSecurityGroupId":{
+            "Export":{
+                "Name":{
+                    "Fn::Sub":"${AWS::StackName}-AutoScalingInstanceSecurityGroupId"
+                }
+            },
+            "Value":{
+                "Ref":"AutoscalingInstanceSecurityGroup"
+            }
+        },
+        "LoadInstanceSecurityGroupId":{
+            "Export":{
+                "Name":{
+                    "Fn::Sub":"${AWS::StackName}-LoadInstanceSecurityGroupId"
+                }
+            },
+            "Value":{
+                "Ref":"LoadInstanceSecurityGroup"
+            }
+        }
+    }
+}

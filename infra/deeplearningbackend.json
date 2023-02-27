@@ -1,0 +1,626 @@
+{
+    "Description": "Infra for backend of deeplearning model",
+    "Parameters": {
+        "VCPNetworkPrefix": {
+            "Description": "Just the first two octets - .0.0/16 will be appended automatically",
+            "Default": "10.0",
+            "Type": "String"
+        },
+        "NetworkStackName":{
+            "Description":"Name of Network Stack",
+            "Default":"Network",
+            "Type":"String"
+        },
+        "StateOfLoadInstance":{
+          "Description":"Name of Network Stack",
+          "Default":"false",
+          "Type":"String"
+      },
+        "InstanceType":{
+            "Description":"Name of Network Stack",
+            "Default":"t2.micro",
+            "Type":"String"
+        },
+        "MinInstances": {
+            "Default": "0",
+            "Type": "Number",
+            "MinValue": "0",
+            "MaxValue": "30"
+          },
+          "DesiredInstances": {
+            "Default": "0",
+            "Type": "Number",
+            "MinValue": "0",
+            "MaxValue": "30"
+          },
+          "MaxInstances": {
+            "Default": "0",
+            "Type": "Number",
+            "MinValue": "0",
+            "MaxValue": "30"
+          }
+    },
+    "Mappings": {
+        "RegionToAmiMap": {
+          "us-east-1": {
+            "production": "ami-0052391d21d1fba4a"
+          }
+        }
+    },
+    "Conditions":{
+      "IsLoadInstanceEnabled": {
+        "Fn::Equals": [
+          {
+            "Ref": "StateOfLoadInstance"
+          },
+          "true"
+        ]
+      }
+    },
+    "Resources":{
+        "UploadSqsQueue": {
+            "Type": "AWS::SQS::Queue",
+            "Properties": {
+              "QueueName": "RequestQueue"
+            }
+          },
+          "UploadSqsQueue2": {
+            "Type": "AWS::SQS::Queue",
+            "Properties": {
+              "QueueName": "ResponseQueue"
+            }
+          },
+          
+          "UploadSQSPolicy": {
+            "Type": "AWS::SQS::QueuePolicy",
+            "Properties": {
+              "Queues": [
+                {
+                  "Ref": "UploadSqsQueue"
+                }
+              ],
+              "PolicyDocument": {
+                "Statement": [
+                  {
+                    "Action": [
+                      "SQS:SendMessage",
+                      "SQS:ReceiveMessage"
+                    ],
+                    "Effect": "Allow",
+                    "Resource": {
+                      "Fn::GetAtt": [
+                        "UploadSqsQueue",
+                        "Arn"
+                      ]
+                    },
+                    "Principal": {
+                      "Service": "s3.amazonaws.com"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "UploadSQSPolicy2": {
+            "Type": "AWS::SQS::QueuePolicy",
+            "Properties": {
+              "Queues": [
+                {
+                  "Ref": "UploadSqsQueue2"
+                }
+              ],
+              "PolicyDocument": {
+                "Statement": [
+                  {
+                    "Action": [
+                      "SQS:SendMessage",
+                      "SQS:ReceiveMessage"
+                    ],
+                    "Effect": "Allow",
+                    "Resource": {
+                      "Fn::GetAtt": [
+                        "UploadSqsQueue2",
+                        "Arn"
+                      ]
+                    },
+                    "Principal": {
+                      "Service": "s3.amazonaws.com"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "AuthEc2InstanceIamRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Statement": [
+                  {
+                    "Sid": "RoleMappedToContainerInstancesViaEc2InstanceIamInstanceProfile",
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": "ec2.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                  }
+                ]
+              },
+              "Path": "/"
+            }
+          },
+          "Bucket1": {
+            "Type": "AWS::S3::Bucket"
+            
+          },
+          "Bucket2": {
+            "Type": "AWS::S3::Bucket"
+            
+          },
+          "AuthEc2InstanceIamPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+              "PolicyName": {
+                "Fn::Join": [
+                  "-",
+                  [
+                    {
+                      "Ref": "AWS::StackName"
+                    },
+                    "AuthEc2InstanceIamPolicy"
+                  ]
+                ]
+              },
+              "PolicyDocument": {
+                "Statement": [
+                  {
+                    "Sid": "AutoscalingGroup",
+                    "Effect": "Allow",
+                    "Action": [
+                      "autoscaling:DescribeAutoScalingGroups",
+                      "autoscaling:SetDesiredCapacity"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AbilityToCheckoutFromEcr",
+                    "Effect": "Allow",
+                    "Action": [
+                      "ecr:GetAuthorizationToken",
+                      "ecr:BatchCheckLayerAvailability",
+                      "ecr:GetDownloadUrlForLayer",
+                      "ecr:GetRepositoryPolicy",
+                      "ecr:DescribeRepositories",
+                      "ecr:ListImages",
+                      "ecr:BatchGetImage"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "WriteLogsToCloudWatchLogs",
+                    "Effect": "Allow",
+                    "Action": [
+                      "logs:CreateLogStream",
+                      "logs:PutLogEvents"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AllowSsmAgentToFunction",
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2messages:*",
+                      "ssm:ListAssociations",
+                      "ssm:ListInstanceAssociations"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AllowTwoWayWebsocketChannelComminicationBetweenTheClientBrowserOrCliAndRemoteManagedInstance",
+                    "Effect": "Allow",
+                    "Action": [
+                      "ssmmessages:*",
+                      "ssm:UpdateInstanceInformation"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AllowSsmToGetS3EncryptionConfiguration",
+                    "Effect": "Allow",
+                    "Action": [
+                      "s3:GetEncryptionConfiguration"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AllowAuthToBeAbleToCallEc2DescribeApi",
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2:Describe*"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AllowSSMAgentToGetKMSGeneratedDataKeyWhenAccessingS3Bucket",
+                    "Effect": "Allow",
+                    "Action": [
+                      "kms:GenerateDataKey",
+                      "kms:Decrypt"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AllowAuthToDescribeEc2Instances",
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2:DescribeInstances"
+                    ],
+                    "Resource": "*"
+                  }
+                ]
+              },
+              "Roles": [
+                {
+                  "Ref": "AuthEc2InstanceIamRole"
+                }
+              ]
+            }
+          },
+          "AuthEc2InstanceIamInstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+              "Path": "/",
+              "Roles": [
+                {
+                  "Ref": "AuthEc2InstanceIamRole"
+                }
+              ]
+            }
+          },
+          "AutoScalingLaunchConfiguration": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Properties": {
+              "AssociatePublicIpAddress": true,
+              "ImageId": {
+                "Fn::FindInMap": [
+                  "RegionToAmiMap",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  "production"
+                ]
+              },
+              "IamInstanceProfile": {
+                "Ref": "AuthEc2InstanceIamInstanceProfile"
+              },
+              "InstanceMonitoring": true,
+              "InstanceType": {
+                "Ref": "InstanceType"
+              },
+              "SecurityGroups": [
+                {
+                  "Fn::ImportValue": {
+                    "Fn::Sub": "${NetworkStackName}-AutoScalingInstanceSecurityGroupId"
+                  }
+                }
+              ]
+            }
+          },
+          "AuthEcsClusterAutoScalingAutoScalingGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+              "Cooldown": 300,
+              "DesiredCapacity": {
+                "Ref": "DesiredInstances"
+              },
+              "HealthCheckGracePeriod": 60,
+              "HealthCheckType": "EC2",
+              "LaunchConfigurationName": {
+                "Ref": "AutoScalingLaunchConfiguration"
+              },
+              "MaxSize": {
+                "Ref": "MaxInstances"
+              },
+              "MinSize": {
+                "Ref": "MinInstances"
+              },
+              "MetricsCollection": [
+                {
+                  "Granularity": "1Minute",
+                  "Metrics": []
+                }
+              ],
+              "TerminationPolicies": [
+                "OldestLaunchConfiguration"
+              ],
+              "VPCZoneIdentifier": [
+                {
+                  "Fn::ImportValue": {
+                    "Fn::Sub": "${NetworkStackName}-PublicSubnetAId"
+                  }
+                },
+                {
+                  "Fn::ImportValue": {
+                    "Fn::Sub": "${NetworkStackName}-PublicSubnetBId"
+                  }
+                }
+              ],
+              "Tags": [
+                {
+                  "Key": "role",
+                  "Value": "authvoip",
+                  "PropagateAtLaunch": "true"
+                }
+              ]
+            }
+          },
+          "MyQueueLengthAlarm":{
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties":{
+              "AlarmName": "MyQueueLengthAlarmHigh",
+              "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+              "EvaluationPeriods": "1",
+              "MetricName": "ApproximateNumberOfMessagesVisible",
+              "Namespace": "AWS/SQS",
+              "Period": "10",
+              "Statistic": "Sum",
+              "Threshold": "1",
+              "AlarmActions":[
+                {"Ref": "MyScalingPolicyHigh"}
+              ],
+              "AlarmDescription": "This metric checks the number of messages in the queue and triggers the scaling policy when it is higher than the threshold",
+              "Dimensions":[
+                {
+                  "Name": "QueueName",
+                  "Value": { "Fn::GetAtt" : [ "UploadSqsQueue", "QueueName" ] }
+                }
+              ]
+            }
+          },
+          "MyScalingPolicyHigh":{
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+    "Properties":{
+      "PolicyName": "MyScalingPolicyHigh",
+      "AdjustmentType": "ChangeInCapacity",
+      "AutoScalingGroupName": {"Ref":"AuthEcsClusterAutoScalingAutoScalingGroup"},
+      "ScalingAdjustment": "10"
+    }
+          },
+          "MyQueueLengthAlarmDown":{
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties":{
+              "AlarmName": "MyQueueLengthAlarmDown",
+              "ComparisonOperator": "LessThanOrEqualToThreshold",
+              "EvaluationPeriods": "1",
+              "MetricName": "ApproximateNumberOfMessagesVisible",
+              "Namespace": "AWS/SQS",
+              "Period": "60",
+              "Statistic": "Sum",
+              "Threshold": "0",
+              "AlarmActions":[
+                {"Ref": "MyScalingPolicyDown"}
+              ],
+              "AlarmDescription": "This metric checks the number of messages in the queue and triggers the scaling policy when it is higher than the threshold",
+              "Dimensions":[
+                {
+                  "Name": "QueueName",
+                  "Value": { "Fn::GetAtt" : [ "UploadSqsQueue", "QueueName" ] }
+                }
+              ]
+            }
+          },
+          "MyScalingPolicyDown":{
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties":{
+              "PolicyName": "MyScalingPolicyDown",
+              "AdjustmentType": "ChangeInCapacity",
+              "AutoScalingGroupName": {"Ref":"AuthEcsClusterAutoScalingAutoScalingGroup"},
+              "ScalingAdjustment": "-20"
+          }
+        },
+          "LoadInstanceIamRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Statement": [
+                  {
+                    "Sid": "RoleMappedToContainerInstancesViaEc2InstanceIamInstanceProfile",
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": "ec2.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                  }
+                ]
+              },
+              "Path": "/"
+            }
+          },
+          "LoadInstanceIamPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+              "PolicyName": {
+                "Fn::Join": [
+                  "-",
+                  [
+                    {
+                      "Ref": "AWS::StackName"
+                    },
+                    "LoadInstanceIamPolicy"
+                  ]
+                ]
+              },
+              "PolicyDocument": {
+                "Statement": [
+                  {
+                    "Sid": "AutoscalingGroup",
+                    "Effect": "Allow",
+                    "Action": [
+                      "autoscaling:DescribeAutoScalingGroups",
+                      "autoscaling:SetDesiredCapacity"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "WriteLogsToCloudWatchLogs",
+                    "Effect": "Allow",
+                    "Action": [
+                      "logs:CreateLogStream",
+                      "logs:PutLogEvents"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                        "ssmmessages:CreateControlChannel",
+                        "ssmmessages:CreateDataChannel",
+                        "ssmmessages:OpenControlChannel",
+                        "ssmmessages:OpenDataChannel"
+                    ],
+                    "Resource": "*"
+                },
+                  {
+                    "Sid": "AllowSsmAgentToFunction",
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2messages:*",
+                      "ssm:ListAssociations",
+                      "ssm:ListInstanceAssociations"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AllowTwoWayWebsocketChannelComminicationBetweenTheClientBrowserOrCliAndRemoteManagedInstance",
+                    "Effect": "Allow",
+                    "Action": [
+                      "ssmmessages:*",
+                      "ssm:UpdateInstanceInformation"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AllowSSMAgentToGetKMSGeneratedDataKeyWhenAccessingS3Bucket",
+                    "Effect": "Allow",
+                    "Action": [
+                      "kms:GenerateDataKey",
+                      "kms:Decrypt"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AllowPollerToDescribeEc2Instances",
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2:DescribeInstances"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Sid": "AllowAccessToECSExecCommandAndStopEcsTask",
+                    "Effect": "Allow",
+                    "Action": [
+                      "ecs:ExecuteCommand",
+                      "ecs:StopTask",
+                      "ecs:DescribeTasks",
+                      "ecs:DescribeClusters",
+                      "ecs:ListClusters",
+                      "ecs:ListTasks"
+                    ],
+                    "Resource": "*"
+                  }
+                ]
+              },
+              "Roles": [
+                {
+                  "Ref": "LoadInstanceIamRole"
+                }
+              ]
+            }
+          },
+          "LoadInstanceIamProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+              "Path": "/",
+              "Roles": [
+                {
+                  "Ref": "LoadInstanceIamRole"
+                }
+              ]
+            }
+          },
+        "LoadEc2Instance": {
+          "Condition":"IsLoadInstanceEnabled",
+          "Type": "AWS::EC2::Instance",
+          "Properties": {
+            "KeyName": "cc",
+            "DisableApiTermination": false,
+            "IamInstanceProfile": {
+              "Ref": "LoadInstanceIamProfile"
+            },
+            "ImageId": {
+              "Fn::FindInMap": [
+                "RegionToAmiMap",
+                {
+                  "Ref": "AWS::Region"
+                },
+                "production"
+              ]
+            },
+            "InstanceInitiatedShutdownBehavior": "stop",
+            "InstanceType": {
+              "Ref": "InstanceType"
+            },
+            
+            "Monitoring": true,
+            "SecurityGroupIds": [
+              {
+                "Fn::ImportValue": {
+                  "Fn::Sub": "${NetworkStackName}-LoadInstanceSecurityGroupId"
+                }
+              }
+            ],
+            "SubnetId": {
+              "Fn::ImportValue": {
+                "Fn::Sub": "${NetworkStackName}-PublicSubnetAId"
+              }
+            },
+            "Tags": [
+              {
+                "Key": "customer",
+                "Value": "ASU"
+              },
+              {
+                "Key": "role",
+                "Value": "loadinstance"
+              }
+            ],
+            "UserData": {
+              "Fn::Base64": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "echo \"Helo\" "
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        },
+    "Outputs":{
+        "UploadSQSQueueArn": {
+            "Export": {
+              "Name": {
+                "Fn::Sub": "${AWS::StackName}-UploadSQSQueueArn"
+              }
+            },
+            "Value": {
+              "Fn::GetAtt": [
+                "UploadSqsQueue",
+                "Arn"
+              ]
+            }
+          }
+    }
+}

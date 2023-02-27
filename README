@@ -1,0 +1,21 @@
+Group members
+
+Name  :  Abhishek Annabathula	
+ASUid :  1225491722
+Tasks :  implementation, debugging, testing and deployment of apptier
+
+Name  :  Laksh Gangwani
+ASUid :  1225578211
+Tasks :  Auto scaling and managing AWS resources
+
+Name  :  Rohan Vipulkumar Dvivedi
+ASUid :  1224063958
+Tasks :  implementation, debugging, testing and deployment of webtier
+
+
+SQS queue names   :  RequestQueue, ResponseQueue
+S3 bucket names   :  infra-bucket1-m3pxpzoyq0kc, infra-bucket2-11ixq7ltu7hkx
+ASG name          :  Infra-AuthEcsClusterAutoScalingAutoScalingGroup-1BN6DBBQYWSRV
+
+Access key ID     :  AKIARJJGXP3Y4CSOKVLI
+Secret access key :  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
