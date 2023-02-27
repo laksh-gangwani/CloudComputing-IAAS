@@ -12,10 +12,10 @@ Name  :  Rohan Vipulkumar Dvivedi
 ASUid :  1224063958
 Tasks :  implementation, debugging, testing and deployment of webtier
 
-
-SQS queue names   :  RequestQueue, ResponseQueue
-S3 bucket names   :  infra-bucket1-m3pxpzoyq0kc, infra-bucket2-11ixq7ltu7hkx
-ASG name          :  Infra-AuthEcsClusterAutoScalingAutoScalingGroup-1BN6DBBQYWSRV
+Web Tier Instance name  :  Original webtier
+SQS queue names         :  RequestQueue, ResponseQueue
+S3 bucket names         :  infra-bucket1-m3pxpzoyq0kc, infra-bucket2-11ixq7ltu7hkx
+ASG name                :  Infra-AuthEcsClusterAutoScalingAutoScalingGroup-1BN6DBBQYWSRV
 
 Access key ID     :  AKIARJJGXP3Y4CSOKVLI
 Secret access key :  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
